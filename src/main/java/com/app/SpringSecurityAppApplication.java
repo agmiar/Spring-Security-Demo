@@ -25,7 +25,7 @@ public class SpringSecurityAppApplication {
     @Bean
     CommandLineRunner init(UserRepository userRepository) {
         return args -> {
-            /* Create PERMISSIONS */
+            /* Crear PERMISOS */
             PermissionEntity createPermission = PermissionEntity.builder()
                     .name("CREATE")
                     .build();
@@ -46,7 +46,7 @@ public class SpringSecurityAppApplication {
                     .name("REFACTOR")
                     .build();
 
-            /* Create ROLES */
+            /* Crear ROLEA */
             RoleEntity roleAdmin = RoleEntity.builder()
                     .roleEnum(RoleEnum.ADMIN)
                     .permissionList(Set.of(createPermission, readPermission, updatePermission, deletePermission))
@@ -67,7 +67,7 @@ public class SpringSecurityAppApplication {
                     .permissionList(Set.of(createPermission, readPermission, updatePermission, deletePermission, refactorPermission))
                     .build();
 
-            /* CREATE USERS */
+            /* Crear USUARIOS */
             UserEntity userSantiago = UserEntity.builder()
                     .username("santiago")
                     .password("$2a$10$cMY29RPYoIHMJSuwRfoD3eQxU1J5Rww4VnNOUOAEPqCBshkNfrEf6")
