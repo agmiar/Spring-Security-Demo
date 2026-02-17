@@ -31,7 +31,7 @@
         # Se asegura que Redis esté healthy antes de conectar la API
         condition: service_healthy
       postgres:
-        condition: service_started
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -53,12 +53,69 @@
       POSTGRES_DB: ${JDBC_DATABASE}
       POSTGRES_USER: ${JDBC_USERNAME}
       POSTGRES_PASSWORD: ${JDBC_PASSWORD}
+      # Se agrega esto
+      POSTGRES_MULTIPLE_DATABASES: ${JDBC_DATABASE},${METABASE_DB_NAME}
     ports:
       - "${JDBC_PORT}:${JDBC_PORT}"
     networks:
       - spring-network
     volumes:
-      - postgres-volume:/var/lib/postgresql/data/security-db
+      - postgres-volume:/var/lib/postgresql/data/security-app
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${JDBC_USERNAME}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Metabase para visualización de la DB
+  metabase:
+    image: metabase/metabase:latest
+    ports:
+      - "3000:3000"
+    environment:
+      # Para guardar info interna de Metabase (tiene que ser otra DB aparte)
+      - MB_DB_TYPE=postgres
+      - MB_DB_DBNAME=${METABASE_DB_NAME}
+      - MB_DB_PORT=${JDBC_PORT}
+      - MB_DB_USER=${METABASE_DB_USER}
+      - MB_DB_PASS=${METABASE_DB_PWD}
+      - MB_DB_HOST=${JDBC_HOST}
+    depends_on:
+        postgres:
+          condition: service_healthy
+    networks:
+      - spring-network
+
+  # Servicio para crear la DB de Metabase (se ejecuta una sola vez)
+  init-metabase-db:
+    image: postgres:latest
+    depends_on:
+      postgres:
+        condition: service_started
+    environment:
+      PGHOST: postgres
+      PGPORT: ${JDBC_PORT}
+      PGUSER: ${JDBC_USERNAME}
+      PGPASSWORD: ${JDBC_PASSWORD}
+    command: >
+      sh -c "
+        # Esperar a que PostgreSQL esté listo
+        until pg_isready -h postgres -U ${JDBC_USERNAME}; do
+          echo 'Esperando a PostgreSQL...'
+          sleep 2
+        done
+      
+        # Esperar un poco más para asegurar
+        sleep 5
+      
+        # Crear base de datos si no existe
+        psql -h postgres -U ${JDBC_USERNAME} -c 'SELECT 1' 2>/dev/null && \
+        psql -h postgres -U ${JDBC_USERNAME} -c 'CREATE DATABASE ${METABASE_DB_NAME};' && \
+        echo 'Base de datos ${METABASE_DB_NAME} creada exitosamente'
+      "
+    networks:
+      - spring-network
 
 networks:
   spring-network:
